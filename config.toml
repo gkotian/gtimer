@@ -1,0 +1,12 @@
+[app]
+database_path = "~/.config/gtimer/gtimer.db"
+refresh_interval_ms = 1000
+regular_application_limit = 5
+
+[timers.minecraft]
+label = "Minecraft Time"
+prominent = true
+title_contains = ["Minecraft"]
+
+[ignore]
+title_contains = ["gTimer"]
