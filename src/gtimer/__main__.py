@@ -4,10 +4,18 @@ import argparse
 from pathlib import Path
 
 from .config import load_config
-from .ui import run
 
 
 def main() -> int:
+    import gi
+
+    from gi.repository import GLib
+
+    GLib.set_prgname("gtimer")
+    GLib.set_application_name("gTimer")
+
+    from .ui import run
+
     parser = argparse.ArgumentParser(description="Run gTimer.")
     parser.add_argument(
         "--config",
