@@ -47,6 +47,34 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(totals[0].total_seconds, 10.0)
 
+    def test_allowance_events_are_deduplicated_by_source_key(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = TimeStore(Path(tmpdir) / "gtimer.db")
+            first = store.add_allowance_event(
+                account_name="minecraft",
+                event_type="scheduled",
+                amount_seconds=3600,
+                effective_date="2026-05-01",
+                created_at=100.0,
+                note="Scheduled",
+                source_key="scheduled:minecraft:2026-05-01",
+            )
+            second = store.add_allowance_event(
+                account_name="minecraft",
+                event_type="scheduled",
+                amount_seconds=3600,
+                effective_date="2026-05-01",
+                created_at=101.0,
+                note="Scheduled",
+                source_key="scheduled:minecraft:2026-05-01",
+            )
+            totals = store.allowance_totals("minecraft")
+            store.close()
+
+        self.assertTrue(first)
+        self.assertFalse(second)
+        self.assertEqual(totals["total"], 3600.0)
+
 
 if __name__ == "__main__":
     unittest.main()

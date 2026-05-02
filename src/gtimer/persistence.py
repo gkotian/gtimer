@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 from .identity import window_key
-from .models import WindowInfo, WindowTotal
+from .models import WindowActivityBounds, WindowInfo, WindowTotal
 
 
 class TimeStore:
@@ -41,6 +41,17 @@ class TimeStore:
               abandoned INTEGER NOT NULL DEFAULT 0
             );
 
+            CREATE TABLE IF NOT EXISTS allowance_events (
+              id INTEGER PRIMARY KEY,
+              account_name TEXT NOT NULL,
+              event_type TEXT NOT NULL,
+              amount_seconds REAL NOT NULL,
+              effective_date TEXT NOT NULL,
+              created_at REAL NOT NULL,
+              note TEXT,
+              source_key TEXT NOT NULL UNIQUE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_focus_intervals_window
               ON focus_intervals(window_id);
             CREATE INDEX IF NOT EXISTS idx_focus_intervals_started
@@ -48,6 +59,10 @@ class TimeStore:
             CREATE INDEX IF NOT EXISTS idx_focus_intervals_open
               ON focus_intervals(ended_at)
               WHERE ended_at IS NULL;
+            CREATE INDEX IF NOT EXISTS idx_allowance_events_account
+              ON allowance_events(account_name);
+            CREATE INDEX IF NOT EXISTS idx_allowance_events_effective_date
+              ON allowance_events(effective_date);
             """
         )
         self.connection.commit()
@@ -184,3 +199,102 @@ class TimeStore:
                 )
             )
         return tuple(totals)
+
+    def window_activity_bounds(self) -> tuple[WindowActivityBounds, ...]:
+        rows = self.connection.execute(
+            """
+            SELECT w.title,
+                   w.window_class,
+                   w.instance,
+                   MIN(fi.started_at) AS first_started_at,
+                   MAX(fi.started_at) AS last_started_at
+              FROM windows w
+              JOIN focus_intervals fi ON fi.window_id = w.id
+             WHERE fi.abandoned = 0
+             GROUP BY w.id
+            """
+        ).fetchall()
+        return tuple(
+            WindowActivityBounds(
+                info=WindowInfo(
+                    title=row["title"],
+                    window_class=row["window_class"],
+                    instance=row["instance"],
+                ),
+                first_started_at=float(row["first_started_at"]),
+                last_started_at=float(row["last_started_at"]),
+            )
+            for row in rows
+        )
+
+    def add_allowance_event(
+        self,
+        account_name: str,
+        event_type: str,
+        amount_seconds: float,
+        effective_date: str,
+        created_at: float,
+        note: str | None,
+        source_key: str,
+    ) -> bool:
+        cursor = self.connection.execute(
+            """
+            INSERT OR IGNORE INTO allowance_events(
+              account_name,
+              event_type,
+              amount_seconds,
+              effective_date,
+              created_at,
+              note,
+              source_key
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                account_name,
+                event_type,
+                amount_seconds,
+                effective_date,
+                created_at,
+                note,
+                source_key,
+            ),
+        )
+        self.connection.commit()
+        return cursor.rowcount == 1
+
+    def allowance_totals(self, account_name: str) -> dict[str, float]:
+        row = self.connection.execute(
+            """
+            SELECT COALESCE(SUM(amount_seconds), 0) AS total,
+                   COALESCE(SUM(
+                     CASE WHEN event_type = 'scheduled' THEN amount_seconds ELSE 0 END
+                   ), 0) AS scheduled,
+                   COALESCE(SUM(
+                     CASE WHEN event_type = 'bonus' THEN amount_seconds ELSE 0 END
+                   ), 0) AS bonus
+              FROM allowance_events
+             WHERE account_name = ?
+            """,
+            (account_name,),
+        ).fetchone()
+        if row is None:
+            return {"total": 0.0, "scheduled": 0.0, "bonus": 0.0}
+        return {
+            "total": float(row["total"]),
+            "scheduled": float(row["scheduled"]),
+            "bonus": float(row["bonus"]),
+        }
+
+    def earliest_allowance_event_date(self, account_name: str) -> str | None:
+        row = self.connection.execute(
+            """
+            SELECT MIN(effective_date) AS effective_date
+              FROM allowance_events
+             WHERE account_name = ?
+            """,
+            (account_name,),
+        ).fetchone()
+        if row is None:
+            return None
+        return row["effective_date"]

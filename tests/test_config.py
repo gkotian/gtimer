@@ -27,6 +27,12 @@ class ConfigTests(unittest.TestCase):
                 label = "Browser"
                 class_contains = ["Firefox"]
 
+                [allowances.minecraft]
+                timer = "minecraft"
+                enabled = true
+                credit_days = ["friday", "saturday", "sunday"]
+                credit_seconds = 3600
+
                 [ignore]
                 title_contains = ["gTimer"]
                 """,
@@ -39,12 +45,14 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.regular_application_limit, 3)
         self.assertEqual(config.prominent_timer().name, "minecraft")
         self.assertIn("browser", config.timers)
+        self.assertEqual(config.allowances["minecraft"].credit_weekdays, (4, 5, 6))
         self.assertEqual(config.ignore.title_contains, ("gTimer",))
 
     def test_missing_config_uses_defaults(self) -> None:
         config = load_config(Path("/does/not/exist.toml"))
 
         self.assertEqual(config.prominent_timer().name, "minecraft")
+        self.assertEqual(config.allowances["minecraft"].credit_seconds, 3600)
         self.assertEqual(config.ignore.title_contains, ("gTimer",))
 
 

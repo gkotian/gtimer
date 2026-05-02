@@ -43,12 +43,22 @@ class TimerConfig:
     match: MatchRule
 
 
+@dataclass(frozen=True)
+class AllowanceConfig:
+    name: str
+    timer_name: str
+    enabled: bool
+    credit_weekdays: tuple[int, ...]
+    credit_seconds: int
+
+
 @dataclass
 class AppConfig:
     database_path: Path = Path("~/.config/gtimer/gtimer.db").expanduser()
     refresh_interval_ms: int = 1000
     regular_application_limit: int = 5
     timers: dict[str, TimerConfig] = field(default_factory=dict)
+    allowances: dict[str, AllowanceConfig] = field(default_factory=dict)
     ignore: MatchRule = field(
         default_factory=lambda: MatchRule(title_contains=("gTimer",))
     )
@@ -67,7 +77,17 @@ def default_config() -> AppConfig:
         prominent=True,
         match=MatchRule(title_contains=("Minecraft",)),
     )
-    return AppConfig(timers={"minecraft": minecraft})
+    minecraft_allowance = AllowanceConfig(
+        name="minecraft",
+        timer_name="minecraft",
+        enabled=True,
+        credit_weekdays=(4, 5, 6),
+        credit_seconds=3600,
+    )
+    return AppConfig(
+        timers={"minecraft": minecraft},
+        allowances={"minecraft": minecraft_allowance},
+    )
 
 
 def load_config(path: Path) -> AppConfig:
@@ -108,8 +128,48 @@ def load_config(path: Path) -> AppConfig:
             )
         config.timers = timers
 
+    allowances_data = data.get("allowances", {})
+    allowances: dict[str, AllowanceConfig] = {}
+    for name, allowance_data in allowances_data.items():
+        allowances[name] = AllowanceConfig(
+            name=name,
+            timer_name=str(allowance_data.get("timer", name)),
+            enabled=bool(allowance_data.get("enabled", True)),
+            credit_weekdays=parse_weekdays(allowance_data.get("credit_days", ())),
+            credit_seconds=int(allowance_data.get("credit_seconds", 3600)),
+        )
+    if allowances:
+        config.allowances = allowances
+
     ignore_data = data.get("ignore", {})
     if ignore_data:
         config.ignore = MatchRule.from_dict(ignore_data)
 
     return config
+
+
+_WEEKDAYS = {
+    "monday": 0,
+    "tuesday": 1,
+    "wednesday": 2,
+    "thursday": 3,
+    "friday": 4,
+    "saturday": 5,
+    "sunday": 6,
+}
+
+
+def parse_weekdays(value: Any) -> tuple[int, ...]:
+    if value is None:
+        return ()
+    values = value if isinstance(value, list) else (value,)
+    weekdays: list[int] = []
+    for item in values:
+        if isinstance(item, int):
+            weekday = item
+        else:
+            weekday = _WEEKDAYS[str(item).casefold()]
+        if weekday < 0 or weekday > 6:
+            raise ValueError(f"Weekday must be between 0 and 6, got {weekday}")
+        weekdays.append(weekday)
+    return tuple(dict.fromkeys(weekdays))

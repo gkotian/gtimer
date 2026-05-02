@@ -50,36 +50,7 @@ class FocusTracker:
         since: float | None = None,
     ) -> TrackerSnapshot:
         since = start_of_today(now) if since is None else since
-        totals_by_key = {total.key: total for total in self.store.window_totals(since)}
-
-        if (
-            self.active_window is not None
-            and self.active_started_at is not None
-            and self.active_started_monotonic is not None
-        ):
-            key = window_key(self.active_window)
-            active_seconds = max(0.0, monotonic_now - self.active_started_monotonic)
-            if self.active_started_at < since:
-                active_seconds = max(0.0, now - since)
-            existing = totals_by_key.get(key)
-            if existing is None:
-                totals_by_key[key] = WindowTotal(
-                    key=key,
-                    info=self.active_window,
-                    total_seconds=active_seconds,
-                    last_focused_at=self.active_started_at,
-                )
-            else:
-                totals_by_key[key] = replace(
-                    existing,
-                    info=self.active_window,
-                    total_seconds=existing.total_seconds + active_seconds,
-                    last_focused_at=self.active_started_at,
-                )
-
-        window_totals = tuple(
-            sorted(totals_by_key.values(), key=lambda total: total.total_seconds, reverse=True)
-        )
+        window_totals = self.window_totals(now, monotonic_now, since)
         timer_totals: dict[str, TimerTotal] = {}
         for timer in self.config.timers.values():
             total_seconds = sum(
@@ -103,6 +74,57 @@ class FocusTracker:
             total_tracked_seconds=sum(total.total_seconds for total in window_totals),
             active_window=self.active_window,
             active_window_started_at=self.active_started_at,
+        )
+
+    def window_totals(
+        self,
+        now: float,
+        monotonic_now: float,
+        since: float | None = None,
+    ) -> tuple[WindowTotal, ...]:
+        totals_by_key = {total.key: total for total in self.store.window_totals(since)}
+
+        if (
+            self.active_window is not None
+            and self.active_started_at is not None
+            and self.active_started_monotonic is not None
+        ):
+            key = window_key(self.active_window)
+            active_seconds = max(0.0, monotonic_now - self.active_started_monotonic)
+            if since is not None and self.active_started_at < since:
+                active_seconds = max(0.0, now - since)
+            existing = totals_by_key.get(key)
+            if existing is None:
+                totals_by_key[key] = WindowTotal(
+                    key=key,
+                    info=self.active_window,
+                    total_seconds=active_seconds,
+                    last_focused_at=self.active_started_at,
+                )
+            else:
+                totals_by_key[key] = replace(
+                    existing,
+                    info=self.active_window,
+                    total_seconds=existing.total_seconds + active_seconds,
+                    last_focused_at=self.active_started_at,
+                )
+
+        return tuple(
+            sorted(totals_by_key.values(), key=lambda total: total.total_seconds, reverse=True)
+        )
+
+    def timer_total_seconds(
+        self,
+        timer_name: str,
+        now: float,
+        monotonic_now: float,
+        since: float | None = None,
+    ) -> float:
+        timer = self.config.timers[timer_name]
+        return sum(
+            total.total_seconds
+            for total in self.window_totals(now, monotonic_now, since)
+            if matches_rule(total.info, timer.match)
         )
 
     def _close_active(self, now: float) -> None:

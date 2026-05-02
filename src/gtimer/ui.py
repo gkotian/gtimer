@@ -8,10 +8,11 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from .allowance import AllowanceManager
 from .config import AppConfig
-from .formatting import format_duration, format_percent
+from .formatting import format_duration, format_percent, format_signed_duration
 from .i3_adapter import I3FocusAdapter
-from .models import TrackerSnapshot, WindowTotal
+from .models import AllowanceSummary, TrackerSnapshot, WindowTotal
 from .persistence import TimeStore
 from .system import system_uptime_seconds
 from .tracker import FocusTracker, start_of_today
@@ -48,6 +49,7 @@ class GTimerWindow(Gtk.ApplicationWindow):
         self.config = config
         self.store = TimeStore(config.database_path)
         self.tracker = FocusTracker(config, self.store)
+        self.allowances = AllowanceManager(config, self.store)
         self.i3_connected = False
         self.i3_message = "connecting to i3 IPC"
         self.adapter: I3FocusAdapter | None = None
@@ -114,6 +116,9 @@ class GTimerWindow(Gtk.ApplicationWindow):
             }
             .warn {
               color: #f0bf5a;
+            }
+            .negative {
+              color: #ff6b6b;
             }
             .row-border {
               border-top: 1px solid #2d3540;
@@ -352,18 +357,33 @@ class GTimerWindow(Gtk.ApplicationWindow):
 
     def _refresh(self) -> bool:
         now = time.time()
-        self.snapshot = self.tracker.snapshot(now, time.monotonic(), start_of_today(now))
+        monotonic_now = time.monotonic()
+        self.snapshot = self.tracker.snapshot(now, monotonic_now, start_of_today(now))
+        prominent = self.config.prominent_timer()
+        all_time_usage = self.tracker.timer_total_seconds(prominent.name, now, monotonic_now)
+        allowance = self.allowances.for_timer(prominent.name, all_time_usage, now)
         uptime = system_uptime_seconds()
-        self._render_snapshot(self.snapshot, uptime, now)
+        self._render_snapshot(self.snapshot, uptime, now, allowance)
         return GLib.SOURCE_CONTINUE
 
-    def _render_snapshot(self, snapshot: TrackerSnapshot, uptime: float, now: float) -> None:
-        timer_text = format_duration(snapshot.prominent_timer.total_seconds)
+    def _render_snapshot(
+        self,
+        snapshot: TrackerSnapshot,
+        uptime: float,
+        now: float,
+        allowance: AllowanceSummary | None,
+    ) -> None:
+        if allowance is None:
+            timer_text = format_duration(snapshot.prominent_timer.total_seconds)
+        else:
+            timer_text = format_signed_duration(allowance.balance_seconds)
         uptime_text = format_duration(uptime)
-        status_text = self._prominent_status(snapshot)
+        status_text = self._prominent_status(snapshot, allowance)
 
         self.regular_timer_value.set_text(timer_text)
         self.advanced_timer_value.set_text(timer_text)
+        self._set_negative(self.regular_timer_value, allowance)
+        self._set_negative(self.advanced_timer_value, allowance)
         self.regular_uptime_value.set_text(uptime_text)
         self.advanced_uptime_value.set_text(uptime_text)
         self.regular_timer_status.set_text(status_text)
@@ -394,7 +414,16 @@ class GTimerWindow(Gtk.ApplicationWindow):
         self._render_regular_list(snapshot)
         self._render_advanced_table(snapshot)
 
-    def _prominent_status(self, snapshot: TrackerSnapshot) -> str:
+    def _prominent_status(
+        self,
+        snapshot: TrackerSnapshot,
+        allowance: AllowanceSummary | None,
+    ) -> str:
+        if allowance is not None:
+            return (
+                f"Remaining allowance - played all time "
+                f"{format_duration(allowance.usage_seconds)}"
+            )
         if not self.i3_connected:
             return "Tracking unavailable"
         active = snapshot.active_window
@@ -405,6 +434,16 @@ class GTimerWindow(Gtk.ApplicationWindow):
             if matches_rule(active, prominent.match):
                 return "Counting"
         return "Paused"
+
+    def _set_negative(
+        self,
+        label: Gtk.Label,
+        allowance: AllowanceSummary | None,
+    ) -> None:
+        if allowance is not None and allowance.balance_seconds < 0:
+            label.add_css_class("negative")
+        else:
+            label.remove_css_class("negative")
 
     def _tracking_status(self) -> str:
         if self.i3_connected:

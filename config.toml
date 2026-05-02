@@ -8,5 +8,11 @@ label = "Minecraft Time"
 prominent = true
 title_contains = ["Minecraft"]
 
+[allowances.minecraft]
+timer = "minecraft"
+enabled = true
+credit_days = ["friday", "saturday", "sunday"]
+credit_seconds = 3600
+
 [ignore]
 title_contains = ["gTimer"]

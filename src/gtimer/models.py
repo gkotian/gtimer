@@ -27,6 +27,13 @@ class WindowTotal:
 
 
 @dataclass(frozen=True)
+class WindowActivityBounds:
+    info: WindowInfo
+    first_started_at: float
+    last_started_at: float
+
+
+@dataclass(frozen=True)
 class TimerTotal:
     name: str
     label: str
@@ -42,3 +49,14 @@ class TrackerSnapshot:
     total_tracked_seconds: float
     active_window: WindowInfo | None
     active_window_started_at: float | None
+
+
+@dataclass(frozen=True)
+class AllowanceSummary:
+    account_name: str
+    timer_name: str
+    usage_seconds: float
+    credit_seconds: float
+    scheduled_seconds: float
+    bonus_seconds: float
+    balance_seconds: float
