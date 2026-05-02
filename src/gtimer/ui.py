@@ -6,7 +6,7 @@ import time
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
 from .allowance import AllowanceManager
 from .config import AppConfig
@@ -175,6 +175,8 @@ class GTimerWindow(Gtk.ApplicationWindow):
 
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.stack.set_hhomogeneous(False)
+        self.stack.set_vhomogeneous(False)
         self.stack.set_vexpand(True)
         root.append(self.stack)
 
@@ -184,7 +186,7 @@ class GTimerWindow(Gtk.ApplicationWindow):
 
     def _build_regular_view(self) -> None:
         regular = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        self.stack.add_titled(regular, "regular", "Regular")
+        self.stack.add_titled(_scrolled(regular), "regular", "Regular")
 
         top = Gtk.Grid(column_spacing=12, row_spacing=12)
         top.set_vexpand(False)
@@ -235,7 +237,7 @@ class GTimerWindow(Gtk.ApplicationWindow):
 
     def _build_advanced_view(self) -> None:
         advanced = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        self.stack.add_titled(advanced, "advanced", "Advanced")
+        self.stack.add_titled(_scrolled(advanced), "advanced", "Advanced")
 
         top = Gtk.Grid(column_spacing=12, row_spacing=12)
         advanced.append(top)
@@ -271,8 +273,8 @@ class GTimerWindow(Gtk.ApplicationWindow):
         focus_status = Gtk.Grid(column_spacing=16)
         focus_status.add_css_class("panel")
         advanced.append(focus_status)
-        self.focus_label = _label("Currently Focused Window: none", xalign=0)
-        self.focus_meta = _label("Class: -    Instance: -", xalign=0)
+        self.focus_label = _label("Currently Focused Window: none", xalign=0, wrap=False)
+        self.focus_meta = _label("Class: -    Instance: -", xalign=0, wrap=False)
         self.advanced_status = _label("", xalign=0)
         status_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         status_box.append(_label("Tracking Status", css_class="table-header"))
@@ -471,8 +473,8 @@ class GTimerWindow(Gtk.ApplicationWindow):
     def _ledger_row(self, entry: AllowanceLedgerEntry) -> Gtk.Widget:
         row = Gtk.Grid(column_spacing=10)
         row.add_css_class("row-border")
-        date_label = _label(entry.effective_date.strftime("%a %Y-%m-%d"), xalign=0)
-        description = _label(entry.label, xalign=0)
+        date_label = _label(entry.effective_date.strftime("%a %Y-%m-%d"), xalign=0, wrap=False)
+        description = _label(entry.label, xalign=0, wrap=False)
         description.set_hexpand(True)
         amount = _label(format_signed_duration(entry.amount_seconds, include_plus=True), xalign=1)
         amount.add_css_class("ok" if entry.amount_seconds >= 0 else "negative")
@@ -493,7 +495,7 @@ class GTimerWindow(Gtk.ApplicationWindow):
     def _application_row(self, total: WindowTotal, total_tracked: float) -> Gtk.Widget:
         row = Gtk.Grid(column_spacing=10)
         row.add_css_class("row-border")
-        name = _label(total.info.display_application, xalign=0)
+        name = _label(total.info.display_application, xalign=0, wrap=False)
         name.set_hexpand(True)
         elapsed = _label(format_duration(total.total_seconds), xalign=1)
         elapsed.add_css_class("ok")
@@ -536,7 +538,7 @@ class GTimerWindow(Gtk.ApplicationWindow):
                 last_focused,
             ]
             for column, value in enumerate(values):
-                label = _label(value, xalign=0 if column < 3 else 1)
+                label = _label(value, xalign=0 if column < 3 else 1, wrap=False)
                 if column == 3:
                     label.add_css_class("ok")
                 self.advanced_table.attach(label, column, row_number, 1, 1)
@@ -557,13 +559,31 @@ class GTimerWindow(Gtk.ApplicationWindow):
         dialog.present()
 
 
-def _label(text: str, xalign: float = 0, css_class: str | None = None) -> Gtk.Label:
+def _label(
+    text: str,
+    xalign: float = 0,
+    css_class: str | None = None,
+    wrap: bool = True,
+) -> Gtk.Label:
     label = Gtk.Label(label=text)
     label.set_xalign(xalign)
-    label.set_wrap(True)
+    label.set_wrap(wrap)
+    if not wrap:
+        label.set_ellipsize(Pango.EllipsizeMode.END)
     if css_class is not None:
         label.add_css_class(css_class)
     return label
+
+
+def _scrolled(child: Gtk.Widget) -> Gtk.ScrolledWindow:
+    scrolled = Gtk.ScrolledWindow()
+    scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scrolled.set_child(child)
+    scrolled.set_hexpand(True)
+    scrolled.set_vexpand(True)
+    scrolled.set_propagate_natural_height(False)
+    scrolled.set_propagate_natural_width(False)
+    return scrolled
 
 
 def _clear_box(box: Gtk.Box) -> None:
