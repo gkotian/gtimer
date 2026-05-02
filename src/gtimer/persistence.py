@@ -4,7 +4,15 @@ import sqlite3
 from pathlib import Path
 
 from .identity import window_key
-from .models import WindowActivityBounds, WindowInfo, WindowTotal
+from datetime import date
+
+from .models import (
+    AllowanceEvent,
+    FocusIntervalRecord,
+    WindowActivityBounds,
+    WindowInfo,
+    WindowTotal,
+)
 
 
 class TimeStore:
@@ -227,6 +235,34 @@ class TimeStore:
             for row in rows
         )
 
+    def focus_intervals(self) -> tuple[FocusIntervalRecord, ...]:
+        rows = self.connection.execute(
+            """
+            SELECT w.title,
+                   w.window_class,
+                   w.instance,
+                   fi.started_at,
+                   fi.ended_at
+              FROM focus_intervals fi
+              JOIN windows w ON w.id = fi.window_id
+             WHERE fi.abandoned = 0
+               AND fi.ended_at IS NOT NULL
+             ORDER BY fi.started_at DESC
+            """
+        ).fetchall()
+        return tuple(
+            FocusIntervalRecord(
+                info=WindowInfo(
+                    title=row["title"],
+                    window_class=row["window_class"],
+                    instance=row["instance"],
+                ),
+                started_at=float(row["started_at"]),
+                ended_at=float(row["ended_at"]),
+            )
+            for row in rows
+        )
+
     def add_allowance_event(
         self,
         account_name: str,
@@ -298,3 +334,30 @@ class TimeStore:
         if row is None:
             return None
         return row["effective_date"]
+
+    def allowance_events(self, account_name: str) -> tuple[AllowanceEvent, ...]:
+        rows = self.connection.execute(
+            """
+            SELECT account_name,
+                   event_type,
+                   amount_seconds,
+                   effective_date,
+                   created_at,
+                   note
+              FROM allowance_events
+             WHERE account_name = ?
+             ORDER BY effective_date DESC, created_at DESC, id DESC
+            """,
+            (account_name,),
+        ).fetchall()
+        return tuple(
+            AllowanceEvent(
+                account_name=row["account_name"],
+                event_type=row["event_type"],
+                amount_seconds=float(row["amount_seconds"]),
+                effective_date=date.fromisoformat(row["effective_date"]),
+                created_at=float(row["created_at"]),
+                note=row["note"],
+            )
+            for row in rows
+        )

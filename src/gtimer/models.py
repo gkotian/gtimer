@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,13 @@ class WindowActivityBounds:
 
 
 @dataclass(frozen=True)
+class FocusIntervalRecord:
+    info: WindowInfo
+    started_at: float
+    ended_at: float
+
+
+@dataclass(frozen=True)
 class TimerTotal:
     name: str
     label: str
@@ -60,3 +68,21 @@ class AllowanceSummary:
     scheduled_seconds: float
     bonus_seconds: float
     balance_seconds: float
+
+
+@dataclass(frozen=True)
+class AllowanceEvent:
+    account_name: str
+    event_type: str
+    amount_seconds: float
+    effective_date: date
+    created_at: float
+    note: str | None
+
+
+@dataclass(frozen=True)
+class AllowanceLedgerEntry:
+    effective_date: date
+    label: str
+    amount_seconds: float
+    entry_type: str

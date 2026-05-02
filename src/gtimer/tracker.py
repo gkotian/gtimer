@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime
+from datetime import date, datetime, time as datetime_time, timedelta
 
 from .config import AppConfig
 from .identity import window_key
@@ -127,6 +127,26 @@ class FocusTracker:
             if matches_rule(total.info, timer.match)
         )
 
+    def timer_usage_by_day(
+        self,
+        timer_name: str,
+        now: float,
+    ) -> dict[date, float]:
+        timer = self.config.timers[timer_name]
+        usage: dict[date, float] = {}
+        for interval in self.store.focus_intervals():
+            if matches_rule(interval.info, timer.match):
+                _add_interval_by_day(usage, interval.started_at, interval.ended_at)
+
+        if (
+            self.active_window is not None
+            and self.active_started_at is not None
+            and matches_rule(self.active_window, timer.match)
+        ):
+            _add_interval_by_day(usage, self.active_started_at, now)
+
+        return usage
+
     def _close_active(self, now: float) -> None:
         if self.active_interval_id is not None:
             self.store.end_interval(self.active_interval_id, now)
@@ -134,3 +154,20 @@ class FocusTracker:
         self.active_interval_id = None
         self.active_started_at = None
         self.active_started_monotonic = None
+
+
+def _add_interval_by_day(usage: dict[date, float], started_at: float, ended_at: float) -> None:
+    if ended_at <= started_at:
+        return
+
+    current = started_at
+    while current < ended_at:
+        current_datetime = datetime.fromtimestamp(current)
+        current_date = current_datetime.date()
+        next_midnight = datetime.combine(
+            current_date + timedelta(days=1),
+            datetime_time.min,
+        ).timestamp()
+        segment_end = min(ended_at, next_midnight)
+        usage[current_date] = usage.get(current_date, 0.0) + max(0.0, segment_end - current)
+        current = segment_end

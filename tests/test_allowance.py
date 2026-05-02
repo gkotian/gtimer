@@ -74,6 +74,32 @@ class AllowanceTests(unittest.TestCase):
 
         self.assertEqual(totals["scheduled"], 10800.0)
 
+    def test_recent_entries_combine_credits_and_daily_usage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = TimeStore(Path(tmpdir) / "gtimer.db")
+            store.add_allowance_event(
+                account_name="minecraft",
+                event_type="bonus",
+                amount_seconds=1800,
+                effective_date="2026-05-04",
+                created_at=timestamp(2026, 5, 4),
+                note="Bonus",
+                source_key="bonus:minecraft:test",
+            )
+
+            manager = AllowanceManager(test_config(), store)
+            entries = manager.recent_entries(
+                "minecraft",
+                daily_usage={datetime(2026, 5, 3).date(): 1200},
+                now=timestamp(2026, 5, 4),
+            )
+            store.close()
+
+        self.assertEqual(entries[0].label, "Bonus time: Bonus")
+        self.assertEqual(entries[0].amount_seconds, 1800.0)
+        self.assertEqual(entries[1].label, "Minecraft time used")
+        self.assertEqual(entries[1].amount_seconds, -1200.0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import tempfile
 import unittest
+from datetime import datetime
 
 from gtimer.config import AppConfig, MatchRule, TimerConfig
 from gtimer.models import WindowInfo
@@ -65,6 +66,22 @@ class TrackerTests(unittest.TestCase):
 
         self.assertEqual(snapshot.total_tracked_seconds, 0.0)
         self.assertEqual(snapshot.window_totals, ())
+
+    def test_timer_usage_by_day_splits_usage_across_midnight(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = TimeStore(Path(tmpdir) / "gtimer.db")
+            tracker = FocusTracker(test_config(), store)
+            started_at = datetime(2026, 5, 1, 23, 30).timestamp()
+            ended_at = datetime(2026, 5, 2, 0, 15).timestamp()
+
+            tracker.focus_changed(WindowInfo("Minecraft", "java", "launcher"), started_at, 10.0)
+            tracker.focus_changed(WindowInfo("Terminal", "Alacritty", "Alacritty"), ended_at, 20.0)
+            usage = tracker.timer_usage_by_day("minecraft", ended_at)
+            tracker.shutdown(ended_at)
+            store.close()
+
+        self.assertEqual(usage[datetime(2026, 5, 1).date()], 1800.0)
+        self.assertEqual(usage[datetime(2026, 5, 2).date()], 900.0)
 
 
 if __name__ == "__main__":

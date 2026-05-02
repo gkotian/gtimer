@@ -12,7 +12,7 @@ from .allowance import AllowanceManager
 from .config import AppConfig
 from .formatting import format_duration, format_percent, format_signed_duration
 from .i3_adapter import I3FocusAdapter
-from .models import AllowanceSummary, TrackerSnapshot, WindowTotal
+from .models import AllowanceLedgerEntry, AllowanceSummary, TrackerSnapshot, WindowTotal
 from .persistence import TimeStore
 from .system import system_uptime_seconds
 from .tracker import FocusTracker, start_of_today
@@ -214,10 +214,9 @@ class GTimerWindow(Gtk.ApplicationWindow):
 
         status_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         status_panel.add_css_class("panel")
-        self.regular_status = Gtk.Label(label="")
-        self.regular_status.set_xalign(0)
-        status_panel.append(_label("Tracking Status", css_class="table-header"))
-        status_panel.append(self.regular_status)
+        status_panel.append(_label("Recent Minecraft Entries", css_class="table-header"))
+        self.regular_ledger = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        status_panel.append(self.regular_ledger)
         body.attach(status_panel, 0, 0, 1, 1)
 
         apps_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -275,9 +274,12 @@ class GTimerWindow(Gtk.ApplicationWindow):
         self.focus_label = _label("Currently Focused Window: none", xalign=0)
         self.focus_meta = _label("Class: -    Instance: -", xalign=0)
         self.advanced_status = _label("", xalign=0)
+        status_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        status_box.append(_label("Tracking Status", css_class="table-header"))
+        status_box.append(self.advanced_status)
         focus_status.attach(self.focus_label, 0, 0, 1, 1)
         focus_status.attach(self.focus_meta, 1, 0, 1, 1)
-        focus_status.attach(self.advanced_status, 2, 0, 1, 1)
+        focus_status.attach(status_box, 2, 0, 1, 1)
         focus_status.set_column_homogeneous(True)
 
         table_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -362,8 +364,10 @@ class GTimerWindow(Gtk.ApplicationWindow):
         prominent = self.config.prominent_timer()
         all_time_usage = self.tracker.timer_total_seconds(prominent.name, now, monotonic_now)
         allowance = self.allowances.for_timer(prominent.name, all_time_usage, now)
+        daily_usage = self.tracker.timer_usage_by_day(prominent.name, now)
+        ledger_entries = self.allowances.recent_entries(prominent.name, daily_usage, now)
         uptime = system_uptime_seconds()
-        self._render_snapshot(self.snapshot, uptime, now, allowance)
+        self._render_snapshot(self.snapshot, uptime, now, allowance, ledger_entries)
         return GLib.SOURCE_CONTINUE
 
     def _render_snapshot(
@@ -372,6 +376,7 @@ class GTimerWindow(Gtk.ApplicationWindow):
         uptime: float,
         now: float,
         allowance: AllowanceSummary | None,
+        ledger_entries: tuple[AllowanceLedgerEntry, ...],
     ) -> None:
         if allowance is None:
             timer_text = format_duration(snapshot.prominent_timer.total_seconds)
@@ -390,7 +395,6 @@ class GTimerWindow(Gtk.ApplicationWindow):
         self.advanced_timer_status.set_text(status_text)
 
         status = self._tracking_status()
-        self.regular_status.set_text(status)
         self.advanced_status.set_text(status)
 
         if snapshot.active_window is None:
@@ -411,6 +415,7 @@ class GTimerWindow(Gtk.ApplicationWindow):
             f"Last updated: {datetime.fromtimestamp(now).strftime('%H:%M:%S')}"
         )
 
+        self._render_allowance_ledger(ledger_entries)
         self._render_regular_list(snapshot)
         self._render_advanced_table(snapshot)
 
@@ -449,6 +454,32 @@ class GTimerWindow(Gtk.ApplicationWindow):
         if self.i3_connected:
             return "i3 IPC connected - tracking active"
         return self.i3_message
+
+    def _render_allowance_ledger(
+        self,
+        entries: tuple[AllowanceLedgerEntry, ...],
+    ) -> None:
+        _clear_box(self.regular_ledger)
+        if not entries:
+            self.regular_ledger.append(
+                _label("No Minecraft allowance entries yet.", css_class="muted")
+            )
+            return
+        for entry in entries:
+            self.regular_ledger.append(self._ledger_row(entry))
+
+    def _ledger_row(self, entry: AllowanceLedgerEntry) -> Gtk.Widget:
+        row = Gtk.Grid(column_spacing=10)
+        row.add_css_class("row-border")
+        date_label = _label(entry.effective_date.strftime("%a %Y-%m-%d"), xalign=0)
+        description = _label(entry.label, xalign=0)
+        description.set_hexpand(True)
+        amount = _label(format_signed_duration(entry.amount_seconds, include_plus=True), xalign=1)
+        amount.add_css_class("ok" if entry.amount_seconds >= 0 else "negative")
+        row.attach(date_label, 0, 0, 1, 1)
+        row.attach(description, 1, 0, 1, 1)
+        row.attach(amount, 2, 0, 1, 1)
+        return row
 
     def _render_regular_list(self, snapshot: TrackerSnapshot) -> None:
         _clear_box(self.regular_list)
