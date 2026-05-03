@@ -66,7 +66,7 @@ class AllowanceSummary:
     usage_seconds: float
     credit_seconds: float
     scheduled_seconds: float
-    bonus_seconds: float
+    adjustment_seconds: float
     balance_seconds: float
 
 

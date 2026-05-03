@@ -50,16 +50,16 @@ def main() -> int:
         help="Create or replace the admin password.",
     )
 
-    bonus = subparsers.add_parser(
-        "add-bonus",
+    adjust = subparsers.add_parser(
+        "adjust",
         parents=[password_common],
-        help="Add password-protected bonus allowance time.",
+        help="Add a password-protected positive or negative allowance adjustment.",
     )
-    bonus.add_argument("account", help="Allowance account name, for example minecraft.")
-    bonus.add_argument("--hours", type=float, default=0.0, help="Bonus hours to add.")
-    bonus.add_argument("--minutes", type=float, default=0.0, help="Bonus minutes to add.")
-    bonus.add_argument("--seconds", type=float, default=0.0, help="Bonus seconds to add.")
-    bonus.add_argument("--note", default=None, help="Optional note stored with the bonus event.")
+    adjust.add_argument("account", help="Allowance account name, for example minecraft.")
+    adjust.add_argument("--hours", type=float, default=0.0, help="Adjustment hours.")
+    adjust.add_argument("--minutes", type=float, default=0.0, help="Adjustment minutes.")
+    adjust.add_argument("--seconds", type=float, default=0.0, help="Adjustment seconds.")
+    adjust.add_argument("--note", default=None, help="Optional note stored with the adjustment.")
 
     balance_parser = subparsers.add_parser(
         "balance",
@@ -71,8 +71,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == "set-password":
         return _set_password(args.password_file.expanduser())
-    if args.command == "add-bonus":
-        return _add_bonus(args)
+    if args.command == "adjust":
+        return _adjust(args)
     if args.command == "balance":
         return _balance(args)
     raise AssertionError(f"Unhandled command: {args.command}")
@@ -93,7 +93,7 @@ def _set_password(password_file: Path) -> int:
     return 0
 
 
-def _add_bonus(args: argparse.Namespace) -> int:
+def _adjust(args: argparse.Namespace) -> int:
     password_file = args.password_file.expanduser()
     if not password_file_exists(password_file):
         print(f"No admin password is configured at {password_file}")
@@ -116,8 +116,8 @@ def _add_bonus(args: argparse.Namespace) -> int:
         return 1
 
     amount_seconds = args.hours * 3600 + args.minutes * 60 + args.seconds
-    if amount_seconds <= 0:
-        print("Bonus time must be greater than zero.")
+    if amount_seconds == 0:
+        print("Adjustment must not be zero.")
         return 1
 
     now = time.time()
@@ -126,17 +126,20 @@ def _add_bonus(args: argparse.Namespace) -> int:
     try:
         store.add_allowance_event(
             account_name=args.account,
-            event_type="bonus",
+            event_type="adjustment",
             amount_seconds=amount_seconds,
             effective_date=effective_date,
             created_at=now,
             note=args.note,
-            source_key=f"bonus:{args.account}:{uuid.uuid4()}",
+            source_key=f"adjustment:{args.account}:{uuid.uuid4()}",
         )
     finally:
         store.close()
 
-    print(f"Added {format_duration(amount_seconds)} bonus time to {args.account}.")
+    print(
+        f"Added {format_signed_duration(amount_seconds, include_plus=True)} "
+        f"adjustment to {args.account}."
+    )
     print(f"Database: {config.database_path}")
     return 0
 

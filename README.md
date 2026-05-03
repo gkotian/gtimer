@@ -9,7 +9,7 @@ The default configuration emphasizes Minecraft play time and also shows system u
 PYTHONPATH=src python -m gtimer
 ```
 
-## Admin password and bonus time
+## Admin password and adjustments
 
 Create the admin password hash:
 
@@ -23,10 +23,16 @@ The password hash is stored at:
 ~/.config/gtimer/admin_password.json
 ```
 
-Add bonus Minecraft allowance time:
+Add Minecraft allowance time:
 
 ```bash
-PYTHONPATH=src python -m gtimer.admin add-bonus minecraft --minutes 30 --note "Bonus time"
+PYTHONPATH=src python -m gtimer.admin adjust minecraft --minutes 30 --note "Bonus time"
+```
+
+Deduct Minecraft allowance time:
+
+```bash
+PYTHONPATH=src python -m gtimer.admin adjust minecraft --minutes -5 --note "Correction"
 ```
 
 Show the exact current Minecraft allowance balance:
@@ -35,7 +41,7 @@ Show the exact current Minecraft allowance balance:
 PYTHONPATH=src python -m gtimer.admin balance minecraft
 ```
 
-The GTK app is read-only; bonus time is only added through this password-protected command.
+The GTK app is read-only; manual allowance changes are only added through this password-protected command.
 
 ## Dependencies on Arch Linux
 

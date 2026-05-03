@@ -307,19 +307,19 @@ class TimeStore:
                      CASE WHEN event_type = 'scheduled' THEN amount_seconds ELSE 0 END
                    ), 0) AS scheduled,
                    COALESCE(SUM(
-                     CASE WHEN event_type = 'bonus' THEN amount_seconds ELSE 0 END
-                   ), 0) AS bonus
+                     CASE WHEN event_type = 'adjustment' THEN amount_seconds ELSE 0 END
+                   ), 0) AS adjustment
               FROM allowance_events
              WHERE account_name = ?
             """,
             (account_name,),
         ).fetchone()
         if row is None:
-            return {"total": 0.0, "scheduled": 0.0, "bonus": 0.0}
+            return {"total": 0.0, "scheduled": 0.0, "adjustment": 0.0}
         return {
             "total": float(row["total"]),
             "scheduled": float(row["scheduled"]),
-            "bonus": float(row["bonus"]),
+            "adjustment": float(row["adjustment"]),
         }
 
     def earliest_allowance_event_date(self, account_name: str) -> str | None:

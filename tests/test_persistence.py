@@ -90,6 +90,34 @@ class PersistenceTests(unittest.TestCase):
         self.assertFalse(second)
         self.assertEqual(totals["total"], 3600.0)
 
+    def test_allowance_totals_include_negative_adjustments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = TimeStore(Path(tmpdir) / "gtimer.db")
+            store.add_allowance_event(
+                account_name="minecraft",
+                event_type="adjustment",
+                amount_seconds=1800,
+                effective_date="2026-05-03",
+                created_at=100.0,
+                note="Add",
+                source_key="adjustment:minecraft:add",
+            )
+            store.add_allowance_event(
+                account_name="minecraft",
+                event_type="adjustment",
+                amount_seconds=-300,
+                effective_date="2026-05-03",
+                created_at=101.0,
+                note="Deduct",
+                source_key="adjustment:minecraft:deduct",
+            )
+
+            totals = store.allowance_totals("minecraft")
+            store.close()
+
+        self.assertEqual(totals["total"], 1500.0)
+        self.assertEqual(totals["adjustment"], 1500.0)
+
 
 if __name__ == "__main__":
     unittest.main()

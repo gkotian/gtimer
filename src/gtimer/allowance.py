@@ -32,7 +32,7 @@ class AllowanceManager:
             usage_seconds=usage_seconds,
             credit_seconds=credit_seconds,
             scheduled_seconds=totals["scheduled"],
-            bonus_seconds=totals["bonus"],
+            adjustment_seconds=totals["adjustment"],
             balance_seconds=credit_seconds - usage_seconds,
         )
 
@@ -60,16 +60,16 @@ class AllowanceManager:
 
         entries: list[AllowanceLedgerEntry] = []
         for event in self.store.allowance_events(allowance.name):
-            if event.event_type == "bonus":
-                label = f"Bonus time: {event.note}" if event.note else "Bonus time"
-            else:
+            if event.event_type == "scheduled":
                 label = "Scheduled allowance"
+            else:
+                label = f"Adjustment: {event.note}" if event.note else "Adjustment"
             entries.append(
                 AllowanceLedgerEntry(
                     effective_date=event.effective_date,
                     label=label,
                     amount_seconds=event.amount_seconds,
-                    entry_type="credit",
+                    entry_type="credit" if event.amount_seconds >= 0 else "debit",
                 )
             )
 

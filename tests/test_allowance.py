@@ -79,12 +79,21 @@ class AllowanceTests(unittest.TestCase):
             store = TimeStore(Path(tmpdir) / "gtimer.db")
             store.add_allowance_event(
                 account_name="minecraft",
-                event_type="bonus",
+                event_type="adjustment",
                 amount_seconds=1800,
                 effective_date="2026-05-04",
                 created_at=timestamp(2026, 5, 4),
                 note="Bonus",
-                source_key="bonus:minecraft:test",
+                source_key="adjustment:minecraft:test",
+            )
+            store.add_allowance_event(
+                account_name="minecraft",
+                event_type="adjustment",
+                amount_seconds=-300,
+                effective_date="2026-05-04",
+                created_at=timestamp(2026, 5, 4, 13),
+                note="Correction",
+                source_key="adjustment:minecraft:test-negative",
             )
 
             manager = AllowanceManager(test_config(), store)
@@ -95,10 +104,12 @@ class AllowanceTests(unittest.TestCase):
             )
             store.close()
 
-        self.assertEqual(entries[0].label, "Bonus time: Bonus")
+        self.assertEqual(entries[0].label, "Adjustment: Bonus")
         self.assertEqual(entries[0].amount_seconds, 1800.0)
-        self.assertEqual(entries[1].label, "Minecraft time used")
-        self.assertEqual(entries[1].amount_seconds, -1200.0)
+        self.assertEqual(entries[1].label, "Adjustment: Correction")
+        self.assertEqual(entries[1].amount_seconds, -300.0)
+        self.assertEqual(entries[2].label, "Minecraft time used")
+        self.assertEqual(entries[2].amount_seconds, -1200.0)
 
 
 if __name__ == "__main__":
