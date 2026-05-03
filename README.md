@@ -29,6 +29,12 @@ Add bonus Minecraft allowance time:
 PYTHONPATH=src python -m gtimer.admin add-bonus minecraft --minutes 30 --note "Bonus time"
 ```
 
+Show the exact current Minecraft allowance balance:
+
+```bash
+PYTHONPATH=src python -m gtimer.admin balance minecraft
+```
+
 The GTK app is read-only; bonus time is only added through this password-protected command.
 
 ## Dependencies on Arch Linux

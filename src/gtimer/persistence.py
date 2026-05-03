@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+from datetime import date
 import sqlite3
 from pathlib import Path
 
 from .identity import window_key
-from datetime import date
-
 from .models import (
     AllowanceEvent,
     FocusIntervalRecord,
@@ -235,20 +234,21 @@ class TimeStore:
             for row in rows
         )
 
-    def focus_intervals(self) -> tuple[FocusIntervalRecord, ...]:
+    def focus_intervals(self, open_ended_at: float | None = None) -> tuple[FocusIntervalRecord, ...]:
         rows = self.connection.execute(
             """
             SELECT w.title,
                    w.window_class,
                    w.instance,
                    fi.started_at,
-                   fi.ended_at
+                   COALESCE(fi.ended_at, ?) AS ended_at
               FROM focus_intervals fi
               JOIN windows w ON w.id = fi.window_id
              WHERE fi.abandoned = 0
-               AND fi.ended_at IS NOT NULL
+               AND (fi.ended_at IS NOT NULL OR ? IS NOT NULL)
              ORDER BY fi.started_at DESC
-            """
+            """,
+            (open_ended_at, open_ended_at),
         ).fetchall()
         return tuple(
             FocusIntervalRecord(

@@ -47,6 +47,21 @@ class PersistenceTests(unittest.TestCase):
 
         self.assertEqual(totals[0].total_seconds, 10.0)
 
+    def test_focus_intervals_can_include_open_interval_for_read_only_balance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = TimeStore(Path(tmpdir) / "gtimer.db")
+            window_id = store.upsert_window(WindowInfo("Minecraft", "java", "launcher"), 100.0)
+            store.start_interval(window_id, 100.0)
+
+            closed_only = store.focus_intervals()
+            with_open = store.focus_intervals(open_ended_at=130.0)
+            store.close()
+
+        self.assertEqual(closed_only, ())
+        self.assertEqual(len(with_open), 1)
+        self.assertEqual(with_open[0].started_at, 100.0)
+        self.assertEqual(with_open[0].ended_at, 130.0)
+
     def test_allowance_events_are_deduplicated_by_source_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             store = TimeStore(Path(tmpdir) / "gtimer.db")

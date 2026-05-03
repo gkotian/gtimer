@@ -8,8 +8,11 @@ import time
 import uuid
 
 from .auth import DEFAULT_PASSWORD_FILE, password_file_exists, set_password, verify_password
-from .config import load_config
-from .formatting import format_duration
+from .allowance import AllowanceManager
+from .config import AppConfig, load_config
+from .formatting import format_duration, format_signed_duration
+from .matching import matches_rule
+from .models import AllowanceSummary
 from .persistence import TimeStore
 
 
@@ -30,22 +33,26 @@ def main() -> int:
         default=None,
         help="Override the SQLite database path from config.",
     )
-    common.add_argument(
+
+    password_common = argparse.ArgumentParser(add_help=False, parents=[common])
+    password_common.add_argument(
         "--password-file",
         type=Path,
         default=DEFAULT_PASSWORD_FILE,
         help="Path to the admin password hash file.",
     )
 
+    balance_common = argparse.ArgumentParser(add_help=False, parents=[common])
+
     subparsers.add_parser(
         "set-password",
-        parents=[common],
+        parents=[password_common],
         help="Create or replace the admin password.",
     )
 
     bonus = subparsers.add_parser(
         "add-bonus",
-        parents=[common],
+        parents=[password_common],
         help="Add password-protected bonus allowance time.",
     )
     bonus.add_argument("account", help="Allowance account name, for example minecraft.")
@@ -54,11 +61,20 @@ def main() -> int:
     bonus.add_argument("--seconds", type=float, default=0.0, help="Bonus seconds to add.")
     bonus.add_argument("--note", default=None, help="Optional note stored with the bonus event.")
 
+    balance_parser = subparsers.add_parser(
+        "balance",
+        parents=[balance_common],
+        help="Show the current allowance balance without changing the database.",
+    )
+    balance_parser.add_argument("account", help="Allowance account name, for example minecraft.")
+
     args = parser.parse_args()
     if args.command == "set-password":
         return _set_password(args.password_file.expanduser())
     if args.command == "add-bonus":
         return _add_bonus(args)
+    if args.command == "balance":
+        return _balance(args)
     raise AssertionError(f"Unhandled command: {args.command}")
 
 
@@ -123,6 +139,54 @@ def _add_bonus(args: argparse.Namespace) -> int:
     print(f"Added {format_duration(amount_seconds)} bonus time to {args.account}.")
     print(f"Database: {config.database_path}")
     return 0
+
+
+def _balance(args: argparse.Namespace) -> int:
+    config = load_config(args.config)
+    if args.database is not None:
+        config.database_path = args.database.expanduser()
+
+    if args.account not in config.allowances:
+        accounts = ", ".join(sorted(config.allowances)) or "none configured"
+        print(f"Unknown allowance account: {args.account}")
+        print(f"Configured allowance accounts: {accounts}")
+        return 1
+
+    now = time.time()
+    store = TimeStore(config.database_path)
+    try:
+        summary = calculate_balance(config, store, args.account, now)
+    finally:
+        store.close()
+
+    print(f"Account: {summary.account_name}")
+    print(
+        f"Remaining: {format_signed_duration(summary.balance_seconds)} "
+        f"({int(summary.balance_seconds)} seconds)"
+    )
+    print(f"Credits: {format_duration(summary.credit_seconds)} ({int(summary.credit_seconds)} seconds)")
+    print(f"Used: {format_duration(summary.usage_seconds)} ({int(summary.usage_seconds)} seconds)")
+    print(f"Database: {config.database_path}")
+    return 0
+
+
+def calculate_balance(
+    config: AppConfig,
+    store: TimeStore,
+    account_name: str,
+    now: float,
+) -> AllowanceSummary:
+    allowance = config.allowances[account_name]
+    timer = config.timers[allowance.timer_name]
+    usage_seconds = sum(
+        max(0.0, interval.ended_at - interval.started_at)
+        for interval in store.focus_intervals(open_ended_at=now)
+        if matches_rule(interval.info, timer.match)
+    )
+    summary = AllowanceManager(config, store).for_timer(timer.name, usage_seconds, now)
+    if summary is None:
+        raise RuntimeError(f"Allowance account is disabled: {account_name}")
+    return summary
 
 
 if __name__ == "__main__":
