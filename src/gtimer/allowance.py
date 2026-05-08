@@ -63,12 +63,13 @@ class AllowanceManager:
             if event.event_type == "scheduled":
                 label = "Scheduled allowance"
             else:
-                label = f"Adjustment: {event.note}" if event.note else "Adjustment"
+                label = event.note or ""
             ordered.append(
                 (
                     event.created_at,
                     AllowanceLedgerEntry(
                         effective_date=event.effective_date,
+                        timestamp=event.created_at,
                         label=label,
                         amount_seconds=event.amount_seconds,
                         entry_type="credit" if event.amount_seconds >= 0 else "debit",
@@ -85,6 +86,7 @@ class AllowanceManager:
                     sort_ts,
                     AllowanceLedgerEntry(
                         effective_date=usage_date,
+                        timestamp=sort_ts,
                         label="Minecraft time used",
                         amount_seconds=-usage_seconds,
                         entry_type="debit",

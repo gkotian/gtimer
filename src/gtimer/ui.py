@@ -213,7 +213,6 @@ class GTimerWindow(Gtk.ApplicationWindow):
         status_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         status_panel.add_css_class("panel")
         status_panel.set_vexpand(True)
-        status_panel.append(_label("Recent Minecraft Entries", css_class="table-header"))
         self.regular_ledger = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         status_panel.append(self.regular_ledger)
         regular.append(status_panel)
@@ -448,20 +447,31 @@ class GTimerWindow(Gtk.ApplicationWindow):
                 _label("No Minecraft allowance entries yet.", css_class="muted")
             )
             return
+        self.regular_ledger.append(self._ledger_header())
         for entry in entries:
             self.regular_ledger.append(self._ledger_row(entry))
+
+    def _ledger_header(self) -> Gtk.Widget:
+        header = Gtk.Grid(column_spacing=10)
+        header.attach(_label("Time", css_class="table-header", xalign=0, wrap=False), 0, 0, 1, 1)
+        header.attach(_label("Adjustment", css_class="table-header", xalign=1, wrap=False), 1, 0, 1, 1)
+        note = _label("Note", css_class="table-header", xalign=0, wrap=False)
+        note.set_hexpand(True)
+        header.attach(note, 2, 0, 1, 1)
+        return header
 
     def _ledger_row(self, entry: AllowanceLedgerEntry) -> Gtk.Widget:
         row = Gtk.Grid(column_spacing=10)
         row.add_css_class("row-border")
-        date_label = _label(entry.effective_date.strftime("%a %Y-%m-%d"), xalign=0, wrap=False)
-        description = _label(entry.label, xalign=0, wrap=False)
-        description.set_hexpand(True)
+        time_text = datetime.fromtimestamp(entry.timestamp).isoformat(timespec="seconds")
+        time_label = _label(time_text, xalign=0, wrap=False)
         amount = _label(format_signed_duration(entry.amount_seconds, include_plus=True), xalign=1)
         amount.add_css_class("ok" if entry.amount_seconds >= 0 else "negative")
-        row.attach(date_label, 0, 0, 1, 1)
-        row.attach(description, 1, 0, 1, 1)
-        row.attach(amount, 2, 0, 1, 1)
+        note = _label(entry.label, xalign=0)
+        note.set_hexpand(True)
+        row.attach(time_label, 0, 0, 1, 1)
+        row.attach(amount, 1, 0, 1, 1)
+        row.attach(note, 2, 0, 1, 1)
         return row
 
     def _render_advanced_table(self, snapshot: TrackerSnapshot) -> None:

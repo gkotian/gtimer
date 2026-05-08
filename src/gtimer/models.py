@@ -83,6 +83,7 @@ class AllowanceEvent:
 @dataclass(frozen=True)
 class AllowanceLedgerEntry:
     effective_date: date
+    timestamp: float
     label: str
     amount_seconds: float
     entry_type: str
