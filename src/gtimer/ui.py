@@ -12,7 +12,7 @@ from .allowance import AllowanceManager
 from .config import AppConfig
 from .formatting import format_duration, format_percent, format_signed_duration
 from .i3_adapter import I3FocusAdapter
-from .models import AllowanceLedgerEntry, AllowanceSummary, TrackerSnapshot, WindowTotal
+from .models import AllowanceLedgerEntry, AllowanceSummary, TrackerSnapshot
 from .persistence import TimeStore
 from .system import system_uptime_seconds
 from .tracker import FocusTracker, start_of_today
@@ -210,30 +210,13 @@ class GTimerWindow(Gtk.ApplicationWindow):
         )
         top.attach(uptime_panel, 1, 0, 1, 1)
 
-        body = Gtk.Grid(column_spacing=12, row_spacing=12)
-        body.set_vexpand(True)
-        regular.append(body)
-
         status_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         status_panel.add_css_class("panel")
+        status_panel.set_vexpand(True)
         status_panel.append(_label("Recent Minecraft Entries", css_class="table-header"))
         self.regular_ledger = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         status_panel.append(self.regular_ledger)
-        body.attach(status_panel, 0, 0, 1, 1)
-
-        apps_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        apps_panel.add_css_class("panel")
-        apps_panel.set_vexpand(True)
-        apps_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        apps_header.append(_label("Time by Application (Today)", css_class="table-header"))
-        self.regular_total = _label("Total: 00:00:00", xalign=1)
-        self.regular_total.set_hexpand(True)
-        apps_header.append(self.regular_total)
-        apps_panel.append(apps_header)
-        self.regular_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        apps_panel.append(self.regular_list)
-        body.attach(apps_panel, 1, 0, 1, 1)
-        body.set_column_homogeneous(True)
+        regular.append(status_panel)
 
     def _build_advanced_view(self) -> None:
         advanced = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
@@ -409,7 +392,6 @@ class GTimerWindow(Gtk.ApplicationWindow):
                 f"Class: {active.window_class or '-'}    Instance: {active.instance or '-'}"
             )
 
-        self.regular_total.set_text(f"Total: {format_duration(snapshot.total_tracked_seconds)}")
         self.advanced_total.set_text(
             f"Total Tracked Time: {format_duration(snapshot.total_tracked_seconds)}"
         )
@@ -418,7 +400,6 @@ class GTimerWindow(Gtk.ApplicationWindow):
         )
 
         self._render_allowance_ledger(ledger_entries)
-        self._render_regular_list(snapshot)
         self._render_advanced_table(snapshot)
 
     def _prominent_status(
@@ -481,32 +462,6 @@ class GTimerWindow(Gtk.ApplicationWindow):
         row.attach(date_label, 0, 0, 1, 1)
         row.attach(description, 1, 0, 1, 1)
         row.attach(amount, 2, 0, 1, 1)
-        return row
-
-    def _render_regular_list(self, snapshot: TrackerSnapshot) -> None:
-        _clear_box(self.regular_list)
-        rows = snapshot.window_totals[: self.config.regular_application_limit]
-        if not rows:
-            self.regular_list.append(_label("No focused-window time recorded today.", css_class="muted"))
-            return
-        for total in rows:
-            self.regular_list.append(self._application_row(total, snapshot.total_tracked_seconds))
-
-    def _application_row(self, total: WindowTotal, total_tracked: float) -> Gtk.Widget:
-        row = Gtk.Grid(column_spacing=10)
-        row.add_css_class("row-border")
-        name = _label(total.info.display_application, xalign=0, wrap=False)
-        name.set_hexpand(True)
-        elapsed = _label(format_duration(total.total_seconds), xalign=1)
-        elapsed.add_css_class("ok")
-        percent_value = total.total_seconds / total_tracked if total_tracked else 0.0
-        percent = _label(format_percent(percent_value), xalign=1)
-        bar = Gtk.ProgressBar()
-        bar.set_fraction(percent_value)
-        row.attach(name, 0, 0, 1, 1)
-        row.attach(elapsed, 1, 0, 1, 1)
-        row.attach(percent, 2, 0, 1, 1)
-        row.attach(bar, 3, 0, 1, 1)
         return row
 
     def _render_advanced_table(self, snapshot: TrackerSnapshot) -> None:
