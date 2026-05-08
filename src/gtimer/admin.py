@@ -4,6 +4,8 @@ import argparse
 from datetime import date
 import getpass
 from pathlib import Path
+import re
+import sys
 import time
 import uuid
 
@@ -16,7 +18,32 @@ from .models import AllowanceSummary
 from .persistence import TimeStore
 
 
-def main() -> int:
+_DURATION_TOKEN_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?[hms]$")
+_DURATION_UNITS = {"h": 3600.0, "m": 60.0, "s": 1.0}
+
+
+def parse_duration(token: str) -> float:
+    if not _DURATION_TOKEN_RE.match(token):
+        raise ValueError(
+            f"Invalid duration {token!r}. Use a value like -47m, +30m, +2h, or 30s."
+        )
+    return float(token[:-1]) * _DURATION_UNITS[token[-1]]
+
+
+def _rewrite_duration_argv(argv: list[str]) -> list[str]:
+    """Rewrite the first bare duration token (e.g. ``-47m``) to ``--duration=<token>``.
+
+    Why: argparse would otherwise treat ``-47m`` as an unknown option flag.
+    """
+    rewritten = list(argv)
+    for i, token in enumerate(rewritten):
+        if _DURATION_TOKEN_RE.match(token):
+            rewritten[i] = f"--duration={token}"
+            break
+    return rewritten
+
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Admin commands for gTimer.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -56,9 +83,11 @@ def main() -> int:
         help="Add a password-protected positive or negative allowance adjustment.",
     )
     adjust.add_argument("account", help="Allowance account name, for example minecraft.")
-    adjust.add_argument("--hours", type=float, default=0.0, help="Adjustment hours.")
-    adjust.add_argument("--minutes", type=float, default=0.0, help="Adjustment minutes.")
-    adjust.add_argument("--seconds", type=float, default=0.0, help="Adjustment seconds.")
+    adjust.add_argument(
+        "--duration",
+        required=True,
+        help="Adjustment amount, for example -47m, +30m, +2h, or 30s.",
+    )
     adjust.add_argument("--note", default=None, help="Optional note stored with the adjustment.")
 
     balance_parser = subparsers.add_parser(
@@ -68,7 +97,8 @@ def main() -> int:
     )
     balance_parser.add_argument("account", help="Allowance account name, for example minecraft.")
 
-    args = parser.parse_args()
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(_rewrite_duration_argv(raw_argv))
     if args.command == "set-password":
         return _set_password(args.password_file.expanduser())
     if args.command == "adjust":
@@ -115,7 +145,11 @@ def _adjust(args: argparse.Namespace) -> int:
         print(f"Configured allowance accounts: {accounts}")
         return 1
 
-    amount_seconds = args.hours * 3600 + args.minutes * 60 + args.seconds
+    try:
+        amount_seconds = parse_duration(args.duration)
+    except ValueError as error:
+        print(error)
+        return 1
     if amount_seconds == 0:
         print("Adjustment must not be zero.")
         return 1

@@ -26,14 +26,16 @@ The password hash is stored at:
 Add Minecraft allowance time:
 
 ```bash
-PYTHONPATH=src python -m gtimer.admin adjust minecraft --minutes 30 --note "Bonus time"
+PYTHONPATH=src python -m gtimer.admin adjust minecraft +30m --note "Bonus time"
 ```
 
 Deduct Minecraft allowance time:
 
 ```bash
-PYTHONPATH=src python -m gtimer.admin adjust minecraft --minutes -5 --note "Correction"
+PYTHONPATH=src python -m gtimer.admin adjust minecraft -5m --note "Correction"
 ```
+
+Durations accept hours, minutes, or seconds (`+2h`, `-47m`, `30s`).
 
 Show the exact current Minecraft allowance balance:
 
