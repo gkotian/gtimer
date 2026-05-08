@@ -35,6 +35,7 @@ class GTimerApplication(Gtk.Application):
     def do_activate(self) -> None:
         if self.window is None:
             self.window = GTimerWindow(self, self.config)
+        self.window.set_visible(True)
         self.window.present()
 
     def do_shutdown(self) -> None:
@@ -57,11 +58,16 @@ class GTimerWindow(Gtk.ApplicationWindow):
 
         self.set_default_size(1220, 760)
         self.set_size_request(900, 560)
+        self.connect("close-request", self._on_close_request)
         self._install_css()
         self._build()
         self._start_i3()
         GLib.timeout_add(config.refresh_interval_ms, self._refresh)
         self._refresh()
+
+    def _on_close_request(self, _window: Gtk.Window) -> bool:
+        self.set_visible(False)
+        return True
 
     def shutdown(self) -> None:
         if self.adapter is not None:
@@ -292,7 +298,7 @@ class GTimerWindow(Gtk.ApplicationWindow):
         preferences.connect("clicked", self._show_preferences)
         footer.append(preferences)
         quit_button = Gtk.Button(label="Quit")
-        quit_button.connect("clicked", lambda _button: self.close())
+        quit_button.connect("clicked", lambda _button: self.get_application().quit())
         footer.append(quit_button)
 
     def _timer_panel(
