@@ -467,7 +467,7 @@ class GTimerWindow(Gtk.ApplicationWindow):
         time_label = _label(time_text, xalign=0, wrap=False)
         amount = _label(format_signed_duration(entry.amount_seconds, include_plus=True), xalign=1)
         amount.add_css_class("ok" if entry.amount_seconds >= 0 else "negative")
-        note = _label(entry.label, xalign=0)
+        note = _label(entry.label, xalign=0, wrap=False)
         note.set_hexpand(True)
         row.attach(time_label, 0, 0, 1, 1)
         row.attach(amount, 1, 0, 1, 1)
