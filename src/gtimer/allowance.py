@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 from .config import AllowanceConfig, AppConfig
 from .matching import matches_rule
@@ -51,49 +51,49 @@ class AllowanceManager:
         timer_name: str,
         daily_usage: dict[date, float],
         now: float,
-        limit: int = 6,
+        limit: int = 10,
     ) -> tuple[AllowanceLedgerEntry, ...]:
         allowance = self._allowance_for_timer(timer_name)
         if allowance is None or not allowance.enabled:
             return ()
         self.reconcile(now)
 
-        entries: list[AllowanceLedgerEntry] = []
+        ordered: list[tuple[float, AllowanceLedgerEntry]] = []
         for event in self.store.allowance_events(allowance.name):
             if event.event_type == "scheduled":
                 label = "Scheduled allowance"
             else:
                 label = f"Adjustment: {event.note}" if event.note else "Adjustment"
-            entries.append(
-                AllowanceLedgerEntry(
-                    effective_date=event.effective_date,
-                    label=label,
-                    amount_seconds=event.amount_seconds,
-                    entry_type="credit" if event.amount_seconds >= 0 else "debit",
+            ordered.append(
+                (
+                    event.created_at,
+                    AllowanceLedgerEntry(
+                        effective_date=event.effective_date,
+                        label=label,
+                        amount_seconds=event.amount_seconds,
+                        entry_type="credit" if event.amount_seconds >= 0 else "debit",
+                    ),
                 )
             )
 
         for usage_date, usage_seconds in daily_usage.items():
             if usage_seconds <= 0:
                 continue
-            entries.append(
-                AllowanceLedgerEntry(
-                    effective_date=usage_date,
-                    label="Minecraft time used",
-                    amount_seconds=-usage_seconds,
-                    entry_type="debit",
+            sort_ts = datetime.combine(usage_date, time.max).timestamp()
+            ordered.append(
+                (
+                    sort_ts,
+                    AllowanceLedgerEntry(
+                        effective_date=usage_date,
+                        label="Minecraft time used",
+                        amount_seconds=-usage_seconds,
+                        entry_type="debit",
+                    ),
                 )
             )
 
-        entries.sort(
-            key=lambda entry: (
-                entry.effective_date,
-                1 if entry.entry_type == "credit" else 0,
-                abs(entry.amount_seconds),
-            ),
-            reverse=True,
-        )
-        return tuple(entries[:limit])
+        ordered.sort(key=lambda item: item[0], reverse=True)
+        return tuple(entry for _, entry in ordered[:limit])
 
     def _reconcile_allowance(
         self,

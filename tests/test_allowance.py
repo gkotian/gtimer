@@ -104,10 +104,10 @@ class AllowanceTests(unittest.TestCase):
             )
             store.close()
 
-        self.assertEqual(entries[0].label, "Adjustment: Bonus")
-        self.assertEqual(entries[0].amount_seconds, 1800.0)
-        self.assertEqual(entries[1].label, "Adjustment: Correction")
-        self.assertEqual(entries[1].amount_seconds, -300.0)
+        self.assertEqual(entries[0].label, "Adjustment: Correction")
+        self.assertEqual(entries[0].amount_seconds, -300.0)
+        self.assertEqual(entries[1].label, "Adjustment: Bonus")
+        self.assertEqual(entries[1].amount_seconds, 1800.0)
         self.assertEqual(entries[2].label, "Minecraft time used")
         self.assertEqual(entries[2].amount_seconds, -1200.0)
 
