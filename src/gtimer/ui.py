@@ -451,10 +451,17 @@ class GTimerWindow(Gtk.ApplicationWindow):
         for entry in entries:
             self.regular_ledger.append(self._ledger_row(entry))
 
+    _LEDGER_TIME_WIDTH = 19
+    _LEDGER_AMOUNT_WIDTH = 10
+
     def _ledger_header(self) -> Gtk.Widget:
         header = Gtk.Grid(column_spacing=10)
-        header.attach(_label("Time", css_class="table-header", xalign=0, wrap=False), 0, 0, 1, 1)
-        header.attach(_label("Adjustment", css_class="table-header", xalign=1, wrap=False), 1, 0, 1, 1)
+        time_header = _label("Time", css_class="table-header", xalign=0, wrap=False)
+        _fix_width(time_header, self._LEDGER_TIME_WIDTH)
+        header.attach(time_header, 0, 0, 1, 1)
+        amount_header = _label("Adjustment", css_class="table-header", xalign=1, wrap=False)
+        _fix_width(amount_header, self._LEDGER_AMOUNT_WIDTH)
+        header.attach(amount_header, 1, 0, 1, 1)
         note = _label("Note", css_class="table-header", xalign=0, wrap=False)
         note.set_hexpand(True)
         header.attach(note, 2, 0, 1, 1)
@@ -465,8 +472,10 @@ class GTimerWindow(Gtk.ApplicationWindow):
         row.add_css_class("row-border")
         time_text = datetime.fromtimestamp(entry.timestamp).isoformat(timespec="seconds")
         time_label = _label(time_text, xalign=0, wrap=False)
+        _fix_width(time_label, self._LEDGER_TIME_WIDTH)
         amount = _label(format_signed_duration(entry.amount_seconds, include_plus=True), xalign=1)
         amount.add_css_class("ok" if entry.amount_seconds >= 0 else "negative")
+        _fix_width(amount, self._LEDGER_AMOUNT_WIDTH)
         note = _label(entry.label, xalign=0, wrap=False)
         note.set_hexpand(True)
         row.attach(time_label, 0, 0, 1, 1)
@@ -538,6 +547,11 @@ def _label(
     if css_class is not None:
         label.add_css_class(css_class)
     return label
+
+
+def _fix_width(label: Gtk.Label, chars: int) -> None:
+    label.set_width_chars(chars)
+    label.set_max_width_chars(chars)
 
 
 def _scrolled(child: Gtk.Widget) -> Gtk.ScrolledWindow:
