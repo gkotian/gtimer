@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import date
 import getpass
+import json
 from pathlib import Path
 import re
 import sys
@@ -88,7 +89,11 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="Adjustment amount, for example -47m, +30m, +2h, or 30s.",
     )
-    adjust.add_argument("--note", default=None, help="Optional note stored with the adjustment.")
+    adjust.add_argument(
+        "--note",
+        required=True,
+        help="Note stored with the adjustment.",
+    )
 
     balance_parser = subparsers.add_parser(
         "balance",
@@ -170,11 +175,11 @@ def _adjust(args: argparse.Namespace) -> int:
     finally:
         store.close()
 
-    print(
-        f"Added {format_signed_duration(amount_seconds, include_plus=True)} "
-        f"adjustment to {args.account}."
-    )
-    print(f"Database: {config.database_path}")
+    print(json.dumps({
+        "account": args.account,
+        "adjustment": format_signed_duration(amount_seconds, include_plus=True),
+        "note": args.note,
+    }))
     return 0
 
 
