@@ -75,7 +75,7 @@ def default_config() -> AppConfig:
         name="minecraft",
         label="Minecraft Time",
         prominent=True,
-        match=MatchRule(title_contains=("Minecraft",)),
+        match=MatchRule(title_contains=("Minecraft",), instance_contains=("minecraft",)),
     )
     minecraft_allowance = AllowanceConfig(
         name="minecraft",

@@ -15,6 +15,23 @@ class MatchingTests(unittest.TestCase):
 
         self.assertTrue(matches_rule(window, rule))
 
+    def test_minecraft_rule_rejects_browser_tab_with_matching_title(self) -> None:
+        # A Firefox tab on Aternos has "Minecraft" in its title but a Navigator
+        # instance — requiring both signals keeps it from being misattributed.
+        aternos_tab = WindowInfo(
+            "Server | Aternos | Free Minecraft Server — Mozilla Firefox",
+            "firefox",
+            "Navigator",
+        )
+        prism_game = WindowInfo("Minecraft 26.1.2", "Minecraft 26.1.2", "Minecraft 26.1.2")
+        rule = MatchRule(
+            title_contains=("Minecraft",),
+            instance_contains=("minecraft",),
+        )
+
+        self.assertFalse(matches_rule(aternos_tab, rule))
+        self.assertTrue(matches_rule(prism_game, rule))
+
     def test_empty_rule_does_not_match_everything(self) -> None:
         self.assertFalse(matches_rule(WindowInfo("Anything"), MatchRule()))
 
